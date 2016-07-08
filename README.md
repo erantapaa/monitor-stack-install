@@ -23,6 +23,7 @@ The script `monitor-stack` will periodically write statisics about the install j
                          ^- list of packages being worked on
 
 Stats are written to the file approximately once every 5 seconds.
+It will automatically quit when it determines the stack install process is no longer running.
 
 `monitor-stack` will us `ps` to find the `stack install` process automatically.
 However, if it fails to find the process you can specify its pid as the first argument:
