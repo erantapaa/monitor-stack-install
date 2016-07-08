@@ -1,12 +1,14 @@
 
 ### Synopsis
 
+```sh
 $ stack install ...list of packages... > output 2>&1 &
 $ ./monitor-stack > output.stats
 ...
 $ ./compute-utilization
 $ ./make-data-js
 $ open report.html
+```
 
 ### Introduction
 
