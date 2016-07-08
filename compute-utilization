@@ -1,0 +1,48 @@
+#!/usr/bin/env python
+
+import re
+import sys
+import os
+
+# 1467876049.69 75.0 2 hlibsass-0.1.5.0 Cabal-ide-backend-1.23.0.0
+
+def matches_number(x):
+  return bool(re.match('\d[\d\.]*\Z', x))
+
+def main():
+  if len(sys.argv) > 1:
+    path = sys.argv[1]
+  else:
+    path = "output.stats"
+
+  with open(path) as f:
+    t0 = None
+    while True:
+      x = next(f)
+      ws = x.split()
+      if matches_number(ws[0]) and matches_number(ws[1]):
+        t0 = float(ws[0])
+        break
+    else:
+      print "No items"
+      return
+
+    total_idle = 0
+    total_secs = 0
+    for x in f:
+      ws = x.split()
+      t = float(ws[0])
+      idle = float(ws[1])
+      njobs = float(ws[2])
+      dt = t - t0
+      if dt < 0:
+        print "dt < 0"
+      elif njobs == 0:
+        pass
+      else:
+        total_idle += dt*(idle/100)
+        total_secs += dt
+  print "avg. idle:", total_idle / total_secs
+
+main()
+

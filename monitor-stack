@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+#
+# monitor a stack install job.
+
+import re
+import os
+import sys
+import time
+from processes import parse_ps_output, ProcessTable, capture_output, process_cwd
+from cpu_stats_linux import cpu_stats, idle_percent, diff_stats
+
+def check_pid(pid):        
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
+
+def pid_command_matches(ptable, pid):
+  cmd = ptable.command(pid)
+  os.path.basename(cmd)
+
+def pids_for_progname(procs, progname):
+  """Return a set of pids with a specific program name."""
+  found = set()
+  for p in procs:
+    cmd = p['COMMAND']
+    w = cmd.split(' ', 1)[0]
+    if os.path.basename(w) == progname:
+      found.add(p['PID'])
+  return found
+
+def pids_for_stack_install(procs):
+  """Return a set of pids for 'stack install' commands"""
+  found = set()
+  for p in procs:
+    cmd = p['COMMAND']
+    m = re.match('(\S*/)?stack install( |\Z)', cmd)
+    if m:
+      found.add(p['PID'])
+  return found
+
+def collect_packages(ptable, pid, pkgs):
+  """Collect the names of packages being processed by stack by looking
+     at the working directories of this process and all its descendants."""
+  cwd = process_cwd(pid) or ""
+  m = re.match('/tmp/stack\d+/([^/]+)', cwd)
+  if m:
+    pkgs.add(m.group(1))
+  for cpid in ptable.children(pid):
+    collect_packages(ptable, cpid, pkgs)
+
+def die(msg):
+  sys.stderr.write(msg+"\n")
+  sys.exit(1)
+
+def warn(msg):
+  sys.stderr.write(msg+"\n")
+
+def determine_top_pid():
+  if len(sys.argv) > 1:
+    top_pid = sys.argv[1]
+    if re.match("\d+\Z", top_pid):
+      return top_pid  # Note: return as a string, not an int
+    die("invalid top pid: " + top_pid)
+  while True:
+    ps_output = capture_output(["ps", "axo", "pid,ppid,command"])
+    procs = parse_ps_output(ps_output)
+    pids = pids_for_stack_install(procs)
+    if len(pids) > 1:
+      die("multiple stack install processes: " + ' '.join(pids))
+    elif len(pids) == 0:
+      warn("stack install not found -- sleeping")
+      time.sleep(3)
+    else:
+      top_pid = pids.pop()
+      return top_pid
+
+def main():
+  # determine the pid of the top stack --install process
+  top_pid = determine_top_pid()
+  top_pid_int = int(top_pid)
+  print "monitoring pid", top_pid
+  sys.stdout.flush()
+
+  dead_count = 0
+  a = cpu_stats()
+  while True:
+    now = time.time()
+    time.sleep(1)
+    b = cpu_stats()
+    ps_output = capture_output(["ps", "axo", "pid,ppid,command"])
+    procs = parse_ps_output(ps_output)
+    ptable = ProcessTable(procs)
+
+    pkgs = set()
+    collect_packages(ptable, top_pid, pkgs)
+
+    diff = diff_stats(b,a)
+    print now, "{:.1f}".format(100*idle_percent(diff)), len(pkgs), ' '.join(pkgs)
+    sys.stdout.flush()
+    if not check_pid(top_pid_int):
+      dead_count += 1
+      if dead_count >= 3:
+        return 
+    else:
+      dead_count = 0
+    time.sleep(5)
+    a = b
+
+if __name__ == '__main__':
+  main()

@@ -1,0 +1,30 @@
+#!/usr/bin/env python
+
+import re
+import sys
+import os
+
+def main():
+  if len(sys.argv) > 1:
+    path = sys.argv[1]
+  else:
+    path = "output.stats"
+
+  with open("data.js", "w") as outfh:
+    with open(path) as f:
+      first = True
+      next(f)
+      for x in f:
+        ws = x.split()
+        if first:
+          outfh.write("var thedata = [\n")
+          first = False
+        else:
+          outfh.write(",\n")
+        outfh.write("[ {}, {}, {} ]".format(ws[0], ws[1], ws[2]))
+        # print ws[0], ws[1], ws[2]
+      outfh.write("\n]\n")
+
+if __name__ == '__main__':
+  main()
+
